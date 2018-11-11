@@ -47,11 +47,18 @@ namespace TestsGenerator.ConsoleApp
                 {
                     Console.WriteLine("Not found correct path to c# class file.");
                 }
+                else
+                {
+                    Generator generator = new Generator();
+                    foreach (var path in paths)
+                    {
+                        generator.Generate(path);
+                    }
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
-                return;
             }
 
             Console.ReadLine();
