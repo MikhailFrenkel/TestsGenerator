@@ -30,9 +30,11 @@ namespace TestsGenerator
                     string ns = (classDeclaration.Parent as NamespaceDeclarationSyntax)?.Name.ToString();
                     string className = classDeclaration.Identifier.ValueText;
                     List<string> methodsName = new List<string>();
+                    int count = 1;
                     foreach (var method in publicMethods)
                     {
-                        methodsName.Add(method.Identifier.ToString());
+                        var name = GetMethodName(methodsName, method.Identifier.ToString(), 0);
+                        methodsName.Add(name);
                     }
 
                     var outputFile = "using Microsoft.VisualStudio.TestTools.UnitTesting;\n\n" 
@@ -53,6 +55,17 @@ namespace TestsGenerator
             {
                 Console.WriteLine(e);
             }
+        }
+
+        private string GetMethodName(List<string>methods, string method, int count)
+        {
+            string res = method + (count == 0 ? "" : count.ToString());
+            if (methods.Contains(res))
+            {
+                return GetMethodName(methods, method, count + 1);
+            }
+
+            return res;
         }
     }
 }
