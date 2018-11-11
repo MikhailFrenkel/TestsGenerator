@@ -49,11 +49,8 @@ namespace TestsGenerator.ConsoleApp
                 }
                 else
                 {
-                    Generator generator = new Generator();
-                    foreach (var path in paths)
-                    {
-                        generator.Generate(path);
-                    }
+                    Generator generator = new Generator(outputDirectory, readCountFiles, maxTasks, writeCountFiles);
+                    generator.Generate(paths);
                 }
             }
             catch (Exception ex)
@@ -61,6 +58,7 @@ namespace TestsGenerator.ConsoleApp
                 Console.WriteLine(ex);
             }
 
+            Console.WriteLine("The end.");
             Console.ReadLine();
         }
     }
