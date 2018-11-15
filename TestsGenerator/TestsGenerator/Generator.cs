@@ -31,32 +31,42 @@ namespace TestsGenerator
 
         public void Generate(List<string> paths)
         {
-            Parallel.ForEach(paths, new ParallelOptions {MaxDegreeOfParallelism = _readCountFiles},
+            /*Parallel.ForEach(paths, new ParallelOptions {MaxDegreeOfParallelism = _readCountFiles},
                 path => { _sources.Add(ReadFile(path)); });
 
             Parallel.ForEach(_sources, new ParallelOptions {MaxDegreeOfParallelism = _maxTasks},
                 source => { _results.AddRange(GenerateFile(source)); });
 
             Parallel.ForEach(_results, new ParallelOptions {MaxDegreeOfParallelism = _writeCountFiles},
-                WriteFile);
+                WriteFile);*/
 
-            /*var read = new TransformBlock<string, string>(new Func<string, string>(ReadFile), 
+            var reader = new TransformBlock<string, string>(new Func<string, string>(ReadFile), 
                 new ExecutionDataflowBlockOptions{ MaxDegreeOfParallelism = _readCountFiles });
 
-            var generate = new TransformBlock<string, List<GeneratedResult>>(new Func<string, List<GeneratedResult>>(GenerateFile),
+            var generator = new TransformBlock<string, List<GeneratedResult>>(new Func<string, List<GeneratedResult>> (GenerateFile),
                 new ExecutionDataflowBlockOptions {MaxDegreeOfParallelism = _maxTasks});
 
-            var write = new TransformBlock<List<GeneratedResult>, int>(new Func<List<GeneratedResult>, int>(WriteFile),
+            var writer = new ActionBlock<List<GeneratedResult>>(new Action<List<GeneratedResult>>(WriteFile),
                 new ExecutionDataflowBlockOptions {MaxDegreeOfParallelism = _writeCountFiles});
 
-            read.LinkTo(generate);
-            //await read.Completion.ContinueWith(x => generate.Complete());
-            generate.LinkTo(write);
-            //await generate.Completion.ContinueWith(x => write.Complete());
+            var linkOptions = new DataflowLinkOptions { PropagateCompletion = true };
 
-            Parallel.ForEach(paths, async path => { await read.SendAsync(path); });
+            reader.LinkTo(generator, linkOptions);
+            //reader.Completion.ContinueWith(x => generator.Complete());
+            generator.LinkTo(writer, linkOptions);
+            //generator.Completion.ContinueWith(x => writer.Complete());
 
-            write.Completion.Wait();
+           // Parallel.ForEach(paths, async path => { await read.SendAsync(path); });
+
+            foreach (var path in paths)
+            {
+                reader.Post(path);
+            }
+
+            reader.Complete();
+
+            writer.Completion.Wait();
+            //todo: Propagate changes
             //while (!write.Completion.IsCompleted);*/
         }
 
@@ -88,6 +98,8 @@ namespace TestsGenerator
                     methodsName.Add(name);
                 }
 
+                //todo: генерация использовать roslyn
+
                 var outputFile = "using Microsoft.VisualStudio.TestTools.UnitTesting;\n\n"
                                  + "namespace " + ns + ".Test\n{\n\t[TestClass]\n\tpublic class "
                                  + className + "Test\n\t{";
@@ -100,7 +112,7 @@ namespace TestsGenerator
 
                 outputFile += "\n\t}\n}";
 
-                var outputPath = _outputDirectory + "/" + className + "Test.cs";
+                var outputPath = Path.Combine(_outputDirectory, className + "Test.cs");//_outputDirectory + "/" + className + "Test.cs";
                 res.Add(new GeneratedResult
                 {
                     Text = outputFile,
@@ -111,9 +123,12 @@ namespace TestsGenerator
             return res;
         }
 
-        private void WriteFile(GeneratedResult result)
+        private void WriteFile(List<GeneratedResult> results)
         {
-            File.WriteAllText(result.OutputPath, result.Text);
+            foreach (var result in results)
+            {
+                File.WriteAllText(result.OutputPath, result.Text);
+            }            
         }
         
         private string GetMethodName(List<string>methods, string method, int count)

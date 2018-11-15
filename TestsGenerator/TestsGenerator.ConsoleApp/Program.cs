@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace TestsGenerator.ConsoleApp
 {
@@ -17,7 +14,7 @@ namespace TestsGenerator.ConsoleApp
 
         static void Main(string[] args)
         {
-            if (args.Length < 5)
+            if (args.Length < MinCountParams)
             {
                 throw new ArgumentException(InvalidParametersMessage);
             }

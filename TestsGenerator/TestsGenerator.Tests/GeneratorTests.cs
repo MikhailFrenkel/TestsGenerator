@@ -5,10 +5,10 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace TestsGenerator.Tests
 {
-    //roslyn проверить атрибуты. проверить повторяющиеся методы
     [TestClass]
     public class GeneratorTests
     {
+        //todo: с помощью roslyn проверить синтаксис
         private string _outputDirectory = "../../../TestGeneratedClassesResults";
         private Generator _generator;
         private List<string> _paths;
