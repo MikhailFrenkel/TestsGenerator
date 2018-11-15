@@ -521,55 +521,6 @@ namespace FilePickerTest.Cryptography
 
     public class BlowfishStream : Stream
     {
-        class CBState : IAsyncResult
-        {
-            internal AsyncCallback callback;
-            internal object state;
-            internal byte[] buffer;
-            internal IAsyncResult result;
-            internal CBState(AsyncCallback callback, object state, byte[] buffer)
-            {
-                this.callback = callback;
-                this.state = state;
-                this.buffer = buffer;
-            }
-            #region IAsyncResult Members
-
-            public object AsyncState
-            {
-                get
-                {
-                    return state;
-                }
-            }
-
-            public bool CompletedSynchronously
-            {
-                get
-                {
-                    return result.CompletedSynchronously;
-                }
-            }
-
-            public System.Threading.WaitHandle AsyncWaitHandle
-            {
-                get
-                {
-                    return result.AsyncWaitHandle;
-                }
-            }
-
-            public bool IsCompleted
-            {
-                get
-                {
-                    return result.IsCompleted;
-                }
-            }
-
-            #endregion
-        }
-
         public enum Target
         {
             Encrypted,

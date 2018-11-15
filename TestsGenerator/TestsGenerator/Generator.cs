@@ -7,6 +7,7 @@ using System.Threading.Tasks.Dataflow;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace TestsGenerator
 {
@@ -16,8 +17,6 @@ namespace TestsGenerator
         private readonly int _writeCountFiles;
         private readonly int _readCountFiles;
         private readonly int _maxTasks;
-        private readonly List<string> _sources;
-        private readonly List<GeneratedResult> _results;
 
         public Generator(string outputDirectory, int readCountFiles, int maxTasks, int writeCountFiles)
         {
@@ -25,49 +24,33 @@ namespace TestsGenerator
             _readCountFiles = readCountFiles;
             _maxTasks = maxTasks;
             _writeCountFiles = writeCountFiles;
-            _sources = new List<string>();
-            _results = new List<GeneratedResult>();
         }
 
-        public void Generate(List<string> paths)
+        public Task Generate(List<string> paths)
         {
-            /*Parallel.ForEach(paths, new ParallelOptions {MaxDegreeOfParallelism = _readCountFiles},
-                path => { _sources.Add(ReadFile(path)); });
-
-            Parallel.ForEach(_sources, new ParallelOptions {MaxDegreeOfParallelism = _maxTasks},
-                source => { _results.AddRange(GenerateFile(source)); });
-
-            Parallel.ForEach(_results, new ParallelOptions {MaxDegreeOfParallelism = _writeCountFiles},
-                WriteFile);*/
-
-            var reader = new TransformBlock<string, string>(new Func<string, string>(ReadFile), 
-                new ExecutionDataflowBlockOptions{ MaxDegreeOfParallelism = _readCountFiles });
-
-            var generator = new TransformBlock<string, List<GeneratedResult>>(new Func<string, List<GeneratedResult>> (GenerateFile),
-                new ExecutionDataflowBlockOptions {MaxDegreeOfParallelism = _maxTasks});
-
-            var writer = new ActionBlock<List<GeneratedResult>>(new Action<List<GeneratedResult>>(WriteFile),
-                new ExecutionDataflowBlockOptions {MaxDegreeOfParallelism = _writeCountFiles});
-
-            var linkOptions = new DataflowLinkOptions { PropagateCompletion = true };
-
-            reader.LinkTo(generator, linkOptions);
-            //reader.Completion.ContinueWith(x => generator.Complete());
-            generator.LinkTo(writer, linkOptions);
-            //generator.Completion.ContinueWith(x => writer.Complete());
-
-           // Parallel.ForEach(paths, async path => { await read.SendAsync(path); });
-
-            foreach (var path in paths)
+            return Task.Run(() =>
             {
-                reader.Post(path);
-            }
+                var reader = new TransformBlock<string, string>(new Func<string, string>(ReadFile),
+                    new ExecutionDataflowBlockOptions {MaxDegreeOfParallelism = _readCountFiles});
 
-            reader.Complete();
+                var generator = new TransformBlock<string, List<GeneratedResult>>(
+                    new Func<string, List<GeneratedResult>>(GenerateFile),
+                    new ExecutionDataflowBlockOptions {MaxDegreeOfParallelism = _maxTasks});
 
-            writer.Completion.Wait();
-            //todo: Propagate changes
-            //while (!write.Completion.IsCompleted);*/
+                var writer = new ActionBlock<List<GeneratedResult>>(new Action<List<GeneratedResult>>(WriteFile),
+                    new ExecutionDataflowBlockOptions {MaxDegreeOfParallelism = _writeCountFiles});
+
+                var linkOptions = new DataflowLinkOptions {PropagateCompletion = true};
+
+                reader.LinkTo(generator, linkOptions);
+                generator.LinkTo(writer, linkOptions);
+
+                foreach (var path in paths) reader.Post(path);
+
+                reader.Complete();
+
+                writer.Completion.Wait();
+            });
         }
 
         private string ReadFile(string path)
@@ -77,10 +60,10 @@ namespace TestsGenerator
 
         private List<GeneratedResult> GenerateFile(string source)
         {
-            List<GeneratedResult> res = new List<GeneratedResult>();
+            var res = new List<GeneratedResult>();
 
-            SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);
-            CompilationUnitSyntax compilationUnitSyntax = syntaxTree.GetCompilationUnitRoot();
+            var syntaxTree = CSharpSyntaxTree.ParseText(source);
+            var compilationUnitSyntax = syntaxTree.GetCompilationUnitRoot();
 
             var classes = compilationUnitSyntax.DescendantNodes().OfType<ClassDeclarationSyntax>();
 
@@ -89,9 +72,9 @@ namespace TestsGenerator
                 var publicMethods = classDeclaration.DescendantNodes().OfType<MethodDeclarationSyntax>()
                     .Where(x => x.Modifiers.Any(y => y.ValueText == "public"));
 
-                string ns = (classDeclaration.Parent as NamespaceDeclarationSyntax)?.Name.ToString();
-                string className = classDeclaration.Identifier.ValueText;
-                List<string> methodsName = new List<string>();
+                var ns = (classDeclaration.Parent as NamespaceDeclarationSyntax)?.Name.ToString();
+                var className = classDeclaration.Identifier.ValueText;
+                var methodsName = new List<string>();
                 foreach (var method in publicMethods)
                 {
                     var name = GetMethodName(methodsName, method.Identifier.ToString(), 0);
@@ -100,7 +83,7 @@ namespace TestsGenerator
 
                 //todo: генерация использовать roslyn
 
-                var outputFile = "using Microsoft.VisualStudio.TestTools.UnitTesting;\n\n"
+                /*var outputFile = "using Microsoft.VisualStudio.TestTools.UnitTesting;\n\n"
                                  + "namespace " + ns + ".Test\n{\n\t[TestClass]\n\tpublic class "
                                  + className + "Test\n\t{";
 
@@ -110,12 +93,25 @@ namespace TestsGenerator
                                                                          + "Test()\n\t\t{\n\t\t\tAssert.Fail(\"autogenerated\");\n\t\t}";
                 }
 
-                outputFile += "\n\t}\n}";
+                outputFile += "\n\t}\n}";    */
+
+                NamespaceDeclarationSyntax namespaceDeclarationSyntax = NamespaceDeclaration(QualifiedName(
+                    IdentifierName(ns), IdentifierName("Test")));
+
+                CompilationUnitSyntax compilationUnit = CompilationUnit()
+                    .WithUsings(GetUsings())
+                    .WithMembers(SingletonList<MemberDeclarationSyntax>(namespaceDeclarationSyntax
+                        .WithMembers(SingletonList<MemberDeclarationSyntax>(ClassDeclaration(className + "Tests")
+                            .WithAttributeLists(SingletonList(AttributeList(SingletonSeparatedList(Attribute(IdentifierName("TestClass"))))))
+                            .WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword)))
+                            .WithMembers(GetMethods(methodsName))))));
+
+                
 
                 var outputPath = Path.Combine(_outputDirectory, className + "Test.cs");//_outputDirectory + "/" + className + "Test.cs";
                 res.Add(new GeneratedResult
                 {
-                    Text = outputFile,
+                    Text = compilationUnit.NormalizeWhitespace().ToFullString(),
                     OutputPath = outputPath
                 });
             }
@@ -125,25 +121,63 @@ namespace TestsGenerator
 
         private void WriteFile(List<GeneratedResult> results)
         {
-            foreach (var result in results)
-            {
-                File.WriteAllText(result.OutputPath, result.Text);
-            }            
+            foreach (var result in results) File.WriteAllText(result.OutputPath, result.Text);
         }
-        
+
+        private SyntaxList<UsingDirectiveSyntax> GetUsings()
+        {
+            return new SyntaxList<UsingDirectiveSyntax>()
+            {
+                UsingDirective(
+                    QualifiedName(
+                        QualifiedName(
+                            QualifiedName(
+                                IdentifierName("Microsoft"),
+                                IdentifierName("VisualStudio")),
+                            IdentifierName("TestTools")),
+                        IdentifierName("UnitTesting")))
+            };
+        }
+
+        private SyntaxList<MemberDeclarationSyntax> GetMethods(List<string> methods)
+        {
+            var result = new List<MemberDeclarationSyntax>();
+            foreach (var method in methods) result.Add(GetMethod(method));
+
+            return List(result);
+        }
+
+        private MethodDeclarationSyntax GetMethod(string name)
+        {
+            /*return MethodDeclaration(
+                PredefinedType(Token(SyntaxKind.VoidKeyword)), IdentifierName(name))
+                .WithAttributeLists(SingletonList(AttributeList(SingletonSeparatedList(
+                    Attribute(IdentifierName("TestMethod"))))))
+                .WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword)))
+                .WithBody(Block((ExpressionStatement(InvocationExpression(
+                    MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                        IdentifierName("Assert"), IdentifierName("Fail")))))));*/
+
+            return MethodDeclaration(
+                    PredefinedType(Token(SyntaxKind.VoidKeyword)),Identifier(name))
+                .WithAttributeLists(SingletonList(AttributeList(SingletonSeparatedList(
+                                Attribute(IdentifierName("TestMethod"))))))
+                .WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword)))
+                .WithBody(Block(ExpressionStatement(InvocationExpression(
+                    MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                        IdentifierName("Assert"), IdentifierName("Fail"))))));
+        }
+
         private string GetMethodName(List<string>methods, string method, int count)
         {
-            string res = method + (count == 0 ? "" : count.ToString());
-            if (methods.Contains(res))
-            {
-                return GetMethodName(methods, method, count + 1);
-            }
+            var res = method + (count == 0 ? "" : count.ToString());
+            if (methods.Contains(res)) return GetMethodName(methods, method, count + 1);
 
             return res;
         }
     }
 
-    class GeneratedResult
+    internal class GeneratedResult
     {
         public string Text { get; set; }
         public string OutputPath { get; set; }

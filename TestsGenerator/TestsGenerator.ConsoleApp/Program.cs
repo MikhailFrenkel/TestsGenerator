@@ -47,7 +47,8 @@ namespace TestsGenerator.ConsoleApp
                 else
                 {
                     Generator generator = new Generator(outputDirectory, readCountFiles, maxTasks, writeCountFiles);
-                    generator.Generate(paths);
+                    var task = generator.Generate(paths);
+                    task.Wait();
                 }
             }
             catch (Exception ex)
