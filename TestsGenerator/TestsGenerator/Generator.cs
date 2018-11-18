@@ -28,33 +28,33 @@ namespace TestsGenerator
 
         public Task Generate(List<string> paths)
         {
-            return Task.Run(() =>
-            {
-                var reader = new TransformBlock<string, Task<string>>(new Func<string, Task<string>>(ReadFile),
-                    new ExecutionDataflowBlockOptions {MaxDegreeOfParallelism = _readCountFiles});
+            var reader = new TransformBlock<string, Task<string>>(new Func<string, Task<string>>(ReadFileAsync),
+                new ExecutionDataflowBlockOptions {MaxDegreeOfParallelism = _readCountFiles});
 
-                var generator = new TransformBlock<Task<string>, Task<List<GeneratedResult>>>(
-                    new Func<Task<string>, Task<List<GeneratedResult>>>(GenerateFile),
-                    new ExecutionDataflowBlockOptions {MaxDegreeOfParallelism = _maxTasks});
+            var generator = new TransformBlock<Task<string>, Task<List<GeneratedResult>>>(
+                new Func<Task<string>, Task<List<GeneratedResult>>>(GenerateFileAsync),
+                new ExecutionDataflowBlockOptions {MaxDegreeOfParallelism = _maxTasks});
 
-                var writer = new ActionBlock<Task<List<GeneratedResult>>>(new Action<Task<List<GeneratedResult>>>(WriteFile),
-                    new ExecutionDataflowBlockOptions {MaxDegreeOfParallelism = _writeCountFiles});
+            var writer = new ActionBlock<Task<List<GeneratedResult>>>(new Action<Task<List<GeneratedResult>>>(WriteFileAsync),
+                new ExecutionDataflowBlockOptions {MaxDegreeOfParallelism = _writeCountFiles});
 
-                var linkOptions = new DataflowLinkOptions {PropagateCompletion = true};
+            var linkOptions = new DataflowLinkOptions {PropagateCompletion = true};
 
-                reader.LinkTo(generator, linkOptions);
-                generator.LinkTo(writer, linkOptions);
+            reader.LinkTo(generator, linkOptions);
+            generator.LinkTo(writer, linkOptions);
 
+            //return Task.Run(() =>
+            //{
                 foreach (var path in paths)
                     reader.Post(path);
 
                 reader.Complete();
 
-                writer.Completion.Wait();
-            });
+            return writer.Completion;
+            //});
         }
 
-        private async Task<string> ReadFile(string path)
+        private async Task<string> ReadFileAsync(string path)
         {
             using (StreamReader sr = new StreamReader(path))
             {
@@ -62,7 +62,7 @@ namespace TestsGenerator
             }
         }
 
-        private async Task<List<GeneratedResult>> GenerateFile(Task<string> readSourceFile)
+        private async Task<List<GeneratedResult>> GenerateFileAsync(Task<string> readSourceFile)
         {
             string source = await readSourceFile;
             var res = new List<GeneratedResult>();
@@ -92,7 +92,7 @@ namespace TestsGenerator
                 CompilationUnitSyntax compilationUnit = CompilationUnit()
                     .WithUsings(GetUsings())
                     .WithMembers(SingletonList<MemberDeclarationSyntax>(namespaceDeclarationSyntax
-                        .WithMembers(SingletonList<MemberDeclarationSyntax>(ClassDeclaration(className + "Tests")
+                        .WithMembers(SingletonList<MemberDeclarationSyntax>(ClassDeclaration(className + "Test")
                             .WithAttributeLists(SingletonList(AttributeList(SingletonSeparatedList(Attribute(IdentifierName("TestClass"))))))
                             .WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword)))
                             .WithMembers(GetMethods(methodsName))))));
@@ -110,7 +110,7 @@ namespace TestsGenerator
             return res;
         }
 
-        private async void WriteFile(Task<List<GeneratedResult>> generateResult)
+        private async void WriteFileAsync(Task<List<GeneratedResult>> generateResult)
         {
             var results = await generateResult;
             foreach (var result in results)
@@ -124,7 +124,7 @@ namespace TestsGenerator
 
         private SyntaxList<UsingDirectiveSyntax> GetUsings()
         {
-            return new SyntaxList<UsingDirectiveSyntax>()
+            List<UsingDirectiveSyntax> usingDirective = new List<UsingDirectiveSyntax>()
             {
                 UsingDirective(
                     QualifiedName(
@@ -135,6 +135,8 @@ namespace TestsGenerator
                             IdentifierName("TestTools")),
                         IdentifierName("UnitTesting")))
             };
+
+            return List(usingDirective);
         }
 
         private SyntaxList<MemberDeclarationSyntax> GetMethods(List<string> methods)
@@ -148,13 +150,16 @@ namespace TestsGenerator
         private MethodDeclarationSyntax GetMethod(string name)
         {
             return MethodDeclaration(
-                    PredefinedType(Token(SyntaxKind.VoidKeyword)),Identifier(name))
+                    PredefinedType(Token(SyntaxKind.VoidKeyword)),Identifier(name + "Test"))
                 .WithAttributeLists(SingletonList(AttributeList(SingletonSeparatedList(
                                 Attribute(IdentifierName("TestMethod"))))))
                 .WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword)))
                 .WithBody(Block(ExpressionStatement(InvocationExpression(
                     MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
-                        IdentifierName("Assert"), IdentifierName("Fail"))))));
+                        IdentifierName("Assert"), IdentifierName("Fail")))
+                            .WithArgumentList(ArgumentList(SingletonSeparatedList(
+                                Argument(LiteralExpression(SyntaxKind.StringLiteralExpression, 
+                                    Literal("autogenerated")))))))));
         }
 
         private string GetMethodName(List<string>methods, string method, int count)

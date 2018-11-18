@@ -58,11 +58,11 @@ namespace TestsGenerator.ConsoleApp
             Console.ReadLine();
         }
 
-        private static async void Generate(List<string> paths, string outputDirectory, 
+        private static void Generate(List<string> paths, string outputDirectory, 
             int readCountFiles, int maxTasks, int writeCountFiles)
         {
             Generator generator = new Generator(outputDirectory, readCountFiles, maxTasks, writeCountFiles);
-            await generator.Generate(paths);
+            generator.Generate(paths).Wait();
         }
     }
 }
