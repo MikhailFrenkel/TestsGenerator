@@ -46,9 +46,7 @@ namespace TestsGenerator.ConsoleApp
                 }
                 else
                 {
-                    Generator generator = new Generator(outputDirectory, readCountFiles, maxTasks, writeCountFiles);
-                    var task = generator.Generate(paths);
-                    task.Wait();
+                    Generate(paths, outputDirectory, readCountFiles, maxTasks, writeCountFiles);
                 }
             }
             catch (Exception ex)
@@ -58,6 +56,13 @@ namespace TestsGenerator.ConsoleApp
 
             Console.WriteLine("The end.");
             Console.ReadLine();
+        }
+
+        private static async void Generate(List<string> paths, string outputDirectory, 
+            int readCountFiles, int maxTasks, int writeCountFiles)
+        {
+            Generator generator = new Generator(outputDirectory, readCountFiles, maxTasks, writeCountFiles);
+            await generator.Generate(paths);
         }
     }
 }
